@@ -13,6 +13,12 @@ type Mcq = {
   difficulty: string;
 };
 
+const difficultyColor: Record<string, string> = {
+  easy: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  hard: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+};
+
 export function MockTestsClient() {
   const searchParams = useSearchParams();
   const topics = useMemo(() => SSC_CGL_TOPICS, []);
@@ -38,6 +44,9 @@ export function MockTestsClient() {
   const [idx, setIdx] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [score, setScore] = useState(0);
+  const [answered, setAnswered] = useState(0);
+  const [finished, setFinished] = useState(false);
 
   const q = questions[idx];
 
@@ -64,15 +73,14 @@ export function MockTestsClient() {
     setQuestions([]);
     setIdx(0);
     setPicked(null);
+    setScore(0);
+    setAnswered(0);
+    setFinished(false);
     try {
       const res = await fetch("/api/mock/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topicSlug,
-          topicName,
-          count: 10,
-        }),
+        body: JSON.stringify({ topicSlug, topicName, count: 10 }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -105,58 +113,70 @@ export function MockTestsClient() {
   function choose(optionIdx: number) {
     if (!q || picked !== null) return;
     setPicked(optionIdx);
-    if (optionIdx !== q.answerIndex) void logMistake(q, optionIdx);
+    setAnswered((a) => a + 1);
+    if (optionIdx === q.answerIndex) {
+      setScore((s) => s + 1);
+    } else {
+      void logMistake(q, optionIdx);
+    }
   }
 
   function next() {
+    if (idx >= questions.length - 1) {
+      setFinished(true);
+    } else {
+      setPicked(null);
+      setIdx((i) => i + 1);
+    }
+  }
+
+  function restart() {
+    setQuestions([]);
+    setIdx(0);
     setPicked(null);
-    setIdx((i) => Math.min(questions.length - 1, i + 1));
+    setScore(0);
+    setAnswered(0);
+    setFinished(false);
   }
 
   const qp = searchParams.get("q")?.trim() ?? "";
   const customBlocked = source === "custom" && !customTopic.trim() && !qp;
+  const progress = questions.length > 0 ? ((idx + (picked !== null ? 1 : 0)) / questions.length) * 100 : 0;
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Pick a syllabus topic or type <strong className="font-medium">any</strong> topic name
-          (Quant, Reasoning, English, GK). Generation uses your{" "}
-          <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">GROQ_API_KEY</code> /{" "}
-          <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">OPENAI_API_KEY</code>. Saving
-          mistakes to the cloud still needs Supabase + sign-in.
+      {/* Config card */}
+      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/60">
+        <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Configure mock test</h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          10 SSC CGL-style MCQs with difficulty tags and instant explanations. Wrong answers are auto-logged to your mistake notebook.
         </p>
 
-        <div className="mt-4 flex flex-wrap gap-2 text-sm">
-          <button
-            type="button"
-            onClick={() => setSource("syllabus")}
-            className={`rounded-full px-3 py-1 ${
-              source === "syllabus"
-                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                : "border border-zinc-300 dark:border-zinc-700"
-            }`}
-          >
-            Syllabus list
-          </button>
-          <button
-            type="button"
-            onClick={() => setSource("custom")}
-            className={`rounded-full px-3 py-1 ${
-              source === "custom"
-                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                : "border border-zinc-300 dark:border-zinc-700"
-            }`}
-          >
-            Any topic (type name)
-          </button>
+        {/* Source toggle */}
+        <div className="mt-4 flex gap-1 rounded-xl border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-800 dark:bg-zinc-900">
+          {(["syllabus", "custom"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setSource(s)}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                source === s
+                  ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50"
+                  : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400"
+              }`}
+            >
+              {s === "syllabus" ? "📚 Syllabus list" : "✏️ Any topic"}
+            </button>
+          ))}
         </div>
 
         {source === "syllabus" ? (
-          <label className="mt-4 block text-sm font-medium text-zinc-900 dark:text-zinc-50">
-            Topic
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Select topic
+            </label>
             <select
-              className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950"
+              className="mt-1.5 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 shadow-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
             >
@@ -166,79 +186,173 @@ export function MockTestsClient() {
                 </option>
               ))}
             </select>
-          </label>
+          </div>
         ) : (
-          <label className="mt-4 block text-sm font-medium text-zinc-900 dark:text-zinc-50">
-            Topic name
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Topic name
+            </label>
             <input
-              className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950"
+              className="mt-1.5 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 shadow-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
               value={customTopic}
               onChange={(e) => setCustomTopic(e.target.value)}
-              placeholder="e.g. Compound interest, Reading comprehension, Ancient History…"
+              onKeyDown={(e) => e.key === "Enter" && void generate()}
+              placeholder="e.g. Compound interest, Ancient History, Para jumbles…"
             />
-          </label>
+          </div>
         )}
 
         <button
           type="button"
           disabled={busy || customBlocked}
           onClick={() => void generate()}
-          className="mt-4 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900"
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 py-3 text-sm font-semibold text-white shadow-sm hover:bg-zinc-800 disabled:opacity-60 dark:bg-amber-500 dark:text-zinc-900 dark:hover:bg-amber-400"
         >
-          {busy ? "Generating…" : "Generate AI mock (10 MCQs)"}
+          {busy ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white dark:border-zinc-900/40 dark:border-t-zinc-900" />
+              Generating 10 questions…
+            </>
+          ) : (
+            "🧪 Generate AI mock (10 MCQs)"
+          )}
         </button>
-        <p className="mt-2 text-xs text-zinc-500">
-          Tip: open{" "}
-          <a className="underline" href="/study">
-            Any topic study
-          </a>{" "}
-          first for notes, then use &quot;Mock test&quot; from there — or paste any topic here.
-        </p>
-        {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+
+        {error ? (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <span>⚠️</span> {error}
+          </div>
+        ) : null}
       </div>
 
-      {q ? (
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-              Question {idx + 1}/{questions.length} · {q.difficulty}
-            </span>
-            <button
-              type="button"
-              disabled={idx >= questions.length - 1}
-              onClick={() => next()}
-              className="rounded-md border border-zinc-300 px-3 py-1 text-xs disabled:opacity-40 dark:border-zinc-700"
-            >
-              Next
-            </button>
+      {/* Results summary (finished) */}
+      {finished && (
+        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/60">
+          <div className="text-center">
+            <div className="text-5xl">
+              {score >= 8 ? "🏆" : score >= 6 ? "👍" : score >= 4 ? "📈" : "💪"}
+            </div>
+            <h2 className="mt-3 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+              {score} / {questions.length}
+            </h2>
+            <p className="mt-1 text-zinc-500">
+              {score >= 8 ? "Excellent! Keep it up." : score >= 6 ? "Good effort — review the wrong ones." : "Keep practising — check your mistake notebook."}
+            </p>
+            <div className="mt-4 flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={restart}
+                className="rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-amber-500 dark:text-zinc-900"
+              >
+                New test
+              </button>
+              <a
+                href="/mistakes"
+                className="rounded-xl border border-zinc-300 px-5 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300"
+              >
+                Review mistakes
+              </a>
+            </div>
           </div>
-          <p className="mt-3 text-base font-medium text-zinc-900 dark:text-zinc-50">{q.question}</p>
-          <div className="mt-4 grid gap-2">
-            {q.options.map((op, i) => {
-              const wrongPick = picked !== null && picked !== q.answerIndex && picked === i;
-              const correctReveal = picked !== null && q.answerIndex === i;
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  disabled={picked !== null}
-                  onClick={() => choose(i)}
-                  className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
-                    correctReveal
-                      ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40"
-                      : wrongPick
-                        ? "border-red-400 bg-red-50 dark:bg-red-950/30"
-                        : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800"
-                  }`}
-                >
-                  <span className="font-medium">{String.fromCharCode(65 + i)}.</span> {op}
-                </button>
-              );
-            })}
+        </div>
+      )}
+
+      {/* Question card */}
+      {q && !finished ? (
+        <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900/60">
+          {/* Progress bar */}
+          <div className="h-1.5 w-full overflow-hidden rounded-t-2xl bg-zinc-100 dark:bg-zinc-800">
+            <div
+              className="h-full bg-amber-500 transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
           </div>
-          {picked !== null ? (
-            <p className="mt-4 text-sm text-zinc-700 dark:text-zinc-300">{q.explanation}</p>
-          ) : null}
+
+          <div className="p-6">
+            {/* Header */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-zinc-500">
+                  Q{idx + 1} / {questions.length}
+                </span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${difficultyColor[q.difficulty] ?? difficultyColor.medium}`}>
+                  {q.difficulty}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-emerald-600 dark:text-emerald-400">✓ {score}</span>
+                <span className="text-red-500 dark:text-red-400">✗ {answered - score}</span>
+              </div>
+            </div>
+
+            {/* Question */}
+            <p className="mt-4 text-base font-semibold leading-relaxed text-zinc-900 dark:text-zinc-50">
+              {q.question}
+            </p>
+
+            {/* Options */}
+            <div className="mt-5 grid gap-2.5">
+              {q.options.map((op, i) => {
+                const isCorrect = i === q.answerIndex;
+                const isWrong = picked !== null && picked === i && !isCorrect;
+                const showCorrect = picked !== null && isCorrect;
+
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    disabled={picked !== null}
+                    onClick={() => choose(i)}
+                    className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-left text-sm transition ${
+                      showCorrect
+                        ? "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/40"
+                        : isWrong
+                          ? "border-red-400 bg-red-50 dark:border-red-600 dark:bg-red-950/30"
+                          : picked !== null
+                            ? "border-zinc-200 bg-zinc-50 opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+                            : "border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-500"
+                    }`}
+                  >
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                      showCorrect
+                        ? "bg-emerald-500 text-white"
+                        : isWrong
+                          ? "bg-red-500 text-white"
+                          : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                    }`}>
+                      {showCorrect ? "✓" : isWrong ? "✗" : String.fromCharCode(65 + i)}
+                    </span>
+                    <span className={`leading-relaxed ${
+                      showCorrect ? "font-semibold text-emerald-900 dark:text-emerald-100" :
+                      isWrong ? "text-red-800 dark:text-red-200" :
+                      "text-zinc-800 dark:text-zinc-200"
+                    }`}>
+                      {op}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Explanation */}
+            {picked !== null ? (
+              <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400">Explanation</p>
+                <p className="mt-1 text-sm leading-relaxed text-blue-900 dark:text-blue-200">{q.explanation}</p>
+              </div>
+            ) : null}
+
+            {/* Next button */}
+            {picked !== null ? (
+              <button
+                type="button"
+                onClick={next}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 py-3 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-amber-500 dark:text-zinc-900 dark:hover:bg-amber-400"
+              >
+                {idx >= questions.length - 1 ? "See results →" : "Next question →"}
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </div>

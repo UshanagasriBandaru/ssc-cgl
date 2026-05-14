@@ -83,7 +83,7 @@ Rules:
     return NextResponse.json(
       {
         error: msg,
-        hint: "Add GROQ_API_KEY or OPENAI_API_KEY in .env.local",
+        hint: "Add GEMINI_API_KEY (recommended), or GROQ_API_KEY / OPENAI_API_KEY in .env.local",
       },
       { status: 502 },
     );

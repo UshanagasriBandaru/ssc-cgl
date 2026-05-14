@@ -122,6 +122,6 @@ export function mockPlanMarkdown(body: PlanRequestBody): string {
     "## Revision / mistake notebook",
     "- Every wrong item: topic tag + one-line reason + redo after 1d/3d/7d.",
     "",
-    "_This mock plan works offline. Add `GROQ_API_KEY` or `OPENAI_API_KEY` for AI-generated tailored plans._",
+    "_This mock plan works offline. Add `GEMINI_API_KEY`, `GROQ_API_KEY`, or `OPENAI_API_KEY` for AI-generated tailored plans._",
   ].join("\n");
 }

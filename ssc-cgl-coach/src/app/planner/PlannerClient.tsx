@@ -3,22 +3,29 @@
 import { useMemo, useState } from "react";
 import type { PrepHorizon, Level } from "@/lib/plan-engine";
 import type { SubjectId } from "@/lib/ssc-topics";
+import { markdownToHtml } from "@/lib/markdown";
 
 type ApiOk = { source: string; markdown: string; warning?: string };
 
-const horizons: { id: PrepHorizon; label: string }[] = [
-  { id: "15d", label: "15 days (survival-style)" },
-  { id: "30d", label: "1 month" },
-  { id: "90d", label: "3 months" },
-  { id: "180d", label: "6 months" },
+const horizons: { id: PrepHorizon; label: string; desc: string }[] = [
+  { id: "15d", label: "15 days", desc: "Survival — high-yield only" },
+  { id: "30d", label: "1 month", desc: "Focused sprint" },
+  { id: "90d", label: "3 months", desc: "Balanced preparation" },
+  { id: "180d", label: "6 months", desc: "Full syllabus coverage" },
 ];
 
-const subjects: { id: SubjectId; label: string }[] = [
-  { id: "quant", label: "Quant" },
-  { id: "reasoning", label: "Reasoning" },
-  { id: "english", label: "English" },
-  { id: "gk", label: "GK / GS" },
+const subjects: { id: SubjectId; label: string; icon: string }[] = [
+  { id: "quant",     label: "Quantitative Aptitude", icon: "📐" },
+  { id: "reasoning", label: "Reasoning",              icon: "🧩" },
+  { id: "english",   label: "English",                icon: "📖" },
+  { id: "gk",        label: "General Awareness",      icon: "🌍" },
 ];
+
+const levelColors: Record<Level, string> = {
+  weak:   "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300",
+  medium: "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300",
+  strong: "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300",
+};
 
 export function PlannerClient() {
   const [horizon, setHorizon] = useState<PrepHorizon>("30d");
@@ -52,16 +59,7 @@ export function PlannerClient() {
       survivalMode: survivalMode || autoSurvival,
       levels,
     }),
-    [
-      horizon,
-      examDate,
-      weekdayHours,
-      weekendHours,
-      targetScore,
-      survivalMode,
-      autoSurvival,
-      levels,
-    ],
+    [horizon, examDate, weekdayHours, weekendHours, targetScore, survivalMode, autoSurvival, levels],
   );
 
   async function generate() {
@@ -107,7 +105,7 @@ export function PlannerClient() {
         setSaveMsg(typeof data.error === "string" ? data.error : "Could not save");
         return;
       }
-      setSaveMsg("Saved to Supabase.");
+      setSaveMsg("✅ Saved to Supabase.");
     } catch {
       setSaveMsg("Network error while saving.");
     } finally {
@@ -116,122 +114,125 @@ export function PlannerClient() {
   }
 
   return (
-    <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
-      <div className="space-y-6 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="grid gap-6 lg:grid-cols-[380px_1fr] lg:items-start">
+      {/* Left: inputs */}
+      <div className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/60">
         <div>
-          <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">Inputs</h2>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Planner biases high-PYQ topics and your weak subjects. Toggle survival for last-mile
-            cram strategy.
+          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Your constraints</h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Planner biases high-PYQ topics and your weak subjects.
           </p>
         </div>
 
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-800 dark:text-zinc-200">Horizon</span>
-          <select
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
-            value={horizon}
-            onChange={(e) => setHorizon(e.target.value as PrepHorizon)}
-          >
+        {/* Horizon */}
+        <div>
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Exam horizon</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
             {horizons.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.label}
-              </option>
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => setHorizon(h.id)}
+                className={`rounded-xl border p-3 text-left transition ${
+                  horizon === h.id
+                    ? "border-zinc-900 bg-zinc-900 text-white dark:border-amber-500 dark:bg-amber-500 dark:text-zinc-900"
+                    : "border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600"
+                }`}
+              >
+                <div className="text-sm font-semibold">{h.label}</div>
+                <div className={`text-xs ${horizon === h.id ? "opacity-80" : "text-zinc-500"}`}>{h.desc}</div>
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
+        </div>
 
+        {/* Hours */}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm">
-            <span className="font-medium text-zinc-800 dark:text-zinc-200">Weekday hours</span>
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">Weekday hours</span>
             <input
-              type="number"
-              min={0.5}
-              max={12}
-              step={0.5}
-              className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950"
+              type="number" min={0.5} max={12} step={0.5}
+              className="mt-1.5 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950"
               value={weekdayHours}
               onChange={(e) => setWeekdayHours(Number(e.target.value))}
             />
           </label>
           <label className="block text-sm">
-            <span className="font-medium text-zinc-800 dark:text-zinc-200">Weekend hours</span>
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">Weekend hours</span>
             <input
-              type="number"
-              min={1}
-              max={14}
-              step={0.5}
-              className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950"
+              type="number" min={1} max={14} step={0.5}
+              className="mt-1.5 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950"
               value={weekendHours}
               onChange={(e) => setWeekendHours(Number(e.target.value))}
             />
           </label>
         </div>
 
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-800 dark:text-zinc-200">
-            Target score (optional)
-          </span>
-          <input
-            type="number"
-            min={0}
-            max={200}
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950"
-            value={targetScore}
-            onChange={(e) =>
-              setTargetScore(e.target.value === "" ? "" : Number(e.target.value))
-            }
-          />
-        </label>
+        {/* Target score + exam date */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm">
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">Target score</span>
+            <input
+              type="number" min={0} max={200}
+              className="mt-1.5 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950"
+              value={targetScore}
+              onChange={(e) => setTargetScore(e.target.value === "" ? "" : Number(e.target.value))}
+              placeholder="e.g. 150"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">Exam date</span>
+            <input
+              type="date"
+              className="mt-1.5 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950"
+              value={examDate}
+              onChange={(e) => setExamDate(e.target.value)}
+            />
+          </label>
+        </div>
 
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-800 dark:text-zinc-200">
-            Exam date (optional)
-          </span>
-          <input
-            type="date"
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950"
-            value={examDate}
-            onChange={(e) => setExamDate(e.target.value)}
-          />
-        </label>
-
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
+        {/* Survival mode */}
+        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
           <input
             type="checkbox"
             checked={survivalMode || autoSurvival}
             disabled={autoSurvival}
             onChange={(e) => setSurvivalMode(e.target.checked)}
+            className="h-4 w-4 rounded"
           />
-          <span className="text-zinc-800 dark:text-zinc-200">
-            Survival mode (high-yield only)
-            {autoSurvival ? " — on automatically for 15-day horizon" : ""}
-          </span>
+          <div>
+            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Survival mode</span>
+            <p className="text-xs text-zinc-500">
+              {autoSurvival ? "Auto-on for 15-day horizon" : "High-yield topics only"}
+            </p>
+          </div>
         </label>
 
+        {/* Subject levels */}
         <div>
-          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            Current level by subject
-          </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Current level by subject</p>
+          <div className="mt-3 space-y-2">
             {subjects.map((s) => (
-              <label key={s.id} className="block text-xs uppercase tracking-wide text-zinc-500">
-                {s.label}
-                <select
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm normal-case text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
-                  value={levels[s.id]}
-                  onChange={(e) =>
-                    setLevels((prev) => ({
-                      ...prev,
-                      [s.id]: e.target.value as Level,
-                    }))
-                  }
-                >
-                  <option value="weak">Weak</option>
-                  <option value="medium">Medium</option>
-                  <option value="strong">Strong</option>
-                </select>
-              </label>
+              <div key={s.id} className="flex items-center gap-3">
+                <span className="w-6 text-base">{s.icon}</span>
+                <span className="w-28 text-xs font-medium text-zinc-600 dark:text-zinc-400">{s.label}</span>
+                <div className="flex gap-1">
+                  {(["weak", "medium", "strong"] as Level[]).map((lv) => (
+                    <button
+                      key={lv}
+                      type="button"
+                      onClick={() => setLevels((prev) => ({ ...prev, [s.id]: lv }))}
+                      className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
+                        levels[s.id] === lv
+                          ? levelColors[lv]
+                          : "border-zinc-200 text-zinc-500 hover:border-zinc-300 dark:border-zinc-700 dark:text-zinc-400"
+                      }`}
+                    >
+                      {lv.charAt(0).toUpperCase() + lv.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -240,53 +241,75 @@ export function PlannerClient() {
           type="button"
           onClick={() => void generate()}
           disabled={loading}
-          className="w-full rounded-lg bg-zinc-900 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-amber-500 dark:text-zinc-900 dark:hover:bg-amber-400"
         >
-          {loading ? "Generating…" : "Generate plan"}
+          {loading ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white dark:border-zinc-900/40 dark:border-t-zinc-900" />
+              Generating plan…
+            </>
+          ) : "📅 Generate study plan"}
         </button>
 
         {error ? (
-          <p className="text-sm text-red-600 dark:text-red-400" role="alert">
-            {error}
-          </p>
+          <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <span>⚠️</span> {error}
+          </div>
         ) : null}
       </div>
 
-      <div className="min-h-[320px] rounded-xl border border-zinc-200 bg-zinc-50 p-6 dark:border-zinc-800 dark:bg-zinc-900/40">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">Plan output</h2>
+      {/* Right: output */}
+      <div className="min-h-[400px] rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900/60">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
+          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Your study plan</h2>
           {result ? (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
-                Source: {result.source}
+              <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                via {result.source}
               </span>
               <button
                 type="button"
                 disabled={saveBusy}
                 onClick={() => void savePlan()}
-                className="rounded-full border border-zinc-300 px-3 py-0.5 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
               >
-                {saveBusy ? "Saving…" : "Save plan"}
+                {saveBusy ? "Saving…" : "💾 Save plan"}
               </button>
             </div>
           ) : null}
         </div>
-        {saveMsg ? (
-          <p className="mb-2 text-xs text-zinc-600 dark:text-zinc-400">{saveMsg}</p>
-        ) : null}
-        {result?.warning ? (
-          <p className="mb-3 text-xs text-amber-800 dark:text-amber-200">{result.warning}</p>
-        ) : null}
-        {result ? (
-          <article className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
-            {result.markdown}
-          </article>
-        ) : (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Generated roadmap appears here. Without API keys you still get a structured mock plan;
-            add Groq (free tier) or OpenAI for richer tailoring.
-          </p>
-        )}
+
+        <div className="p-6">
+          {saveMsg ? (
+            <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">{saveMsg}</p>
+          ) : null}
+          {result?.warning ? (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              <span>⚠️</span> {result.warning}
+            </div>
+          ) : null}
+
+          {result ? (
+            <article
+              className="prose-study"
+              dangerouslySetInnerHTML={{ __html: markdownToHtml(result.markdown) }}
+            />
+          ) : loading ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <span className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-200 border-t-zinc-600" />
+              <p className="mt-4 text-sm text-zinc-500">Building your personalised plan…</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="text-5xl">📅</div>
+              <p className="mt-4 font-medium text-zinc-700 dark:text-zinc-300">Your plan will appear here</p>
+              <p className="mt-2 max-w-sm text-sm text-zinc-500">
+                Without API keys you still get a structured mock plan. Add{" "}
+                <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">GEMINI_API_KEY</code> for AI-tailored output.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
