@@ -417,3 +417,108 @@ export function StudyTopicClient() {
           )}
         </div>
       )}
+                {analysisTab === "shortcuts" && (
+                  analysis.shortcuts.length ? (
+                    <ul className="space-y-3">
+                      {analysis.shortcuts.map((s, i) => (
+                        <li key={i} className="flex items-start gap-3">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">{i + 1}</span>
+                          <span className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{s}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="text-sm text-zinc-500">No shortcuts derivable from this source.</p>
+                )}
+                {analysisTab === "questions" && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-zinc-500">Likely MCQ question stems — use these to test yourself.</p>
+                    <ol className="space-y-2">
+                      {analysis.potentialQuestions.map((q, i) => (
+                        <li key={i} className="flex items-start gap-3 rounded-lg border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-bold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300">{i + 1}</span>
+                          <span className="text-sm text-zinc-800 dark:text-zinc-200">{q}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SAVED TAB ── */}
+      {mainTab === "saved" && (
+        <div className="space-y-4">
+          {savedPacks.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/50 p-10 text-center dark:border-zinc-700 dark:bg-zinc-900/20">
+              <div className="text-4xl">💾</div>
+              <p className="mt-3 font-medium text-zinc-700 dark:text-zinc-300">No saved packs yet</p>
+              <p className="mt-1 text-sm text-zinc-500">Generate notes for a topic and click Save.</p>
+              <button type="button" onClick={() => setMainTab("generate")}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-amber-500 dark:text-zinc-900">
+                Generate notes →
+              </button>
+            </div>
+          ) : viewingPack ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">{viewingPack.topicName}</h2>
+                <button type="button" onClick={() => setViewingPack(null)}
+                  className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400">
+                  ← Back
+                </button>
+              </div>
+              <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/60">
+                <h3 className="mb-3 font-semibold text-zinc-800 dark:text-zinc-200">📋 Notes</h3>
+                <div className="prose-study" dangerouslySetInnerHTML={{ __html: markdownToHtml(viewingPack.importantNotes) }} />
+              </div>
+              <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/60">
+                <h3 className="mb-3 font-semibold text-zinc-800 dark:text-zinc-200">🔢 Formulas</h3>
+                <div className="prose-study" dangerouslySetInnerHTML={{ __html: markdownToHtml(viewingPack.formulas) }} />
+              </div>
+              {viewingPack.shortcuts.length > 0 && (
+                <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/60">
+                  <h3 className="mb-3 font-semibold text-zinc-800 dark:text-zinc-200">⚡ Shortcuts</h3>
+                  <ul className="space-y-2">
+                    {viewingPack.shortcuts.map((s, i) => (
+                      <li key={i} className="flex items-start gap-3">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">{i + 1}</span>
+                        <span className="text-sm text-zinc-700 dark:text-zinc-300">{s}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : (
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {savedPacks.map((p) => (
+                <li key={p.topicName} className="flex flex-col rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/60">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">{p.topicName}</h3>
+                    <button type="button"
+                      onClick={() => { const next = removeSavedPack(p.topicName); setSavedPacks(next); }}
+                      className="shrink-0 text-xs text-red-400 hover:text-red-600">✕</button>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-400">{new Date(p.savedAt).toLocaleDateString()}</p>
+                  <div className="mt-4 flex gap-2">
+                    <button type="button" onClick={() => setViewingPack(p)}
+                      className="flex-1 rounded-lg bg-zinc-900 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-amber-500 dark:text-zinc-900">
+                      Open
+                    </button>
+                    <Link href={`/mock-tests?q=${encodeURIComponent(p.topicName)}`}
+                      className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-center text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300">
+                      Mock test
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
