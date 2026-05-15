@@ -1,7 +1,8 @@
+// Auth is optional — this component renders nothing when Supabase is not configured.
+// When Supabase IS configured, it shows the signed-in email + sign out button.
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -23,27 +24,14 @@ function AuthControlsInner({ supabase }: { supabase: SupabaseClient }) {
     };
   }, [supabase]);
 
-  async function signOut() {
-    await supabase.auth.signOut();
-  }
-
-  if (!email) {
-    return (
-      <Link
-        href="/login"
-        className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
-      >
-        Sign in
-      </Link>
-    );
-  }
+  if (!email) return null;
 
   return (
     <div className="flex items-center gap-2">
       <span className="hidden max-w-[140px] truncate text-xs text-zinc-500 sm:inline">{email}</span>
       <button
         type="button"
-        onClick={() => void signOut()}
+        onClick={() => void supabase.auth.signOut()}
         className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700"
       >
         Sign out
@@ -54,14 +42,7 @@ function AuthControlsInner({ supabase }: { supabase: SupabaseClient }) {
 
 export function AuthControls() {
   const supabase = useMemo(() => createClient(), []);
-
-  if (!supabase) {
-    return (
-      <span className="rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
-        DB off
-      </span>
-    );
-  }
-
+  // If Supabase not configured, render nothing — no "DB off" badge, no sign-in button
+  if (!supabase) return null;
   return <AuthControlsInner supabase={supabase} />;
 }
