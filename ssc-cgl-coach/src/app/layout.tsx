@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteNav } from "@/components/SiteNav";
+import { StorageWarning } from "@/components/StorageWarning";
 import Link from "next/link";
 
 const geistSans = Geist({
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col">
         <SiteNav />
         <div className="flex flex-1 flex-col">{children}</div>
+        <StorageWarning />
         <footer className="mt-auto border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-xs text-zinc-500">
             <div className="flex items-center gap-2">

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SSC_CGL_TOPICS } from "@/lib/ssc-topics";
+import { KEYS, readStore, writeStore, getLanguagePref } from "@/lib/datastore";
 
 export type MistakeRow = {
   id: string;
@@ -14,23 +15,26 @@ export type MistakeRow = {
   created_at?: string;
 };
 
-const LS_KEY = "ssc-coach-mistakes-v1";
+// Use v2 key, fall back to v1 for migration
+const LS_KEY = KEYS.MISTAKES;
+const LS_KEY_V1 = "ssc-coach-mistakes-v1";
 const supabaseConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
 function loadLocal(): MistakeRow[] {
   if (typeof window === "undefined") return [];
+  // Try v2 first, fall back to v1
+  const v2 = readStore<MistakeRow[]>(LS_KEY, []);
+  if (v2.length > 0) return v2;
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(LS_KEY_V1);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as MistakeRow[];
     return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 function saveLocal(rows: MistakeRow[]) {
-  localStorage.setItem(LS_KEY, JSON.stringify(rows));
+  writeStore(LS_KEY, rows);
 }
 
 export function MistakesClient() {
@@ -136,6 +140,7 @@ export function MistakesClient() {
       return;
     }
     setExplaining(row.id);
+    const lang = getLanguagePref();
     const res = await fetch("/api/mistakes/explain", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -144,6 +149,7 @@ export function MistakesClient() {
         question: row.question,
         correct_answer: row.correct_answer ?? "",
         user_answer: row.user_answer ?? "",
+        lang,
       }),
     });
     const data = await res.json();

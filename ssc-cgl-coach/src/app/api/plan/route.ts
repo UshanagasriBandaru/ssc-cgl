@@ -47,6 +47,8 @@ function validateBody(raw: unknown): PlanRequestBody | null {
     targetScore:
       typeof o.targetScore === "number" ? o.targetScore : undefined,
     survivalMode: typeof o.survivalMode === "boolean" ? o.survivalMode : undefined,
+    weakTopics: Array.isArray(o.weakTopics) ? (o.weakTopics as string[]) : undefined,
+    burnoutWarning: typeof o.burnoutWarning === "boolean" ? o.burnoutWarning : undefined,
     levels: {
       quant,
       reasoning,

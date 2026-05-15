@@ -2,8 +2,12 @@
 
 import { useMemo, useState } from "react";
 import type { PrepHorizon, Level } from "@/lib/plan-engine";
-import type { SubjectId } from "@/lib/ssc-topics";
+import { SSC_CGL_TOPICS, type SubjectId } from "@/lib/ssc-topics";
 import { markdownToHtml } from "@/lib/markdown";
+import { KEYS, readStore } from "@/lib/datastore";
+import { computePerformanceScore, computeWeakTopics } from "@/lib/performance";
+import type { MockSession } from "@/lib/performance";
+import type { MistakeRecord } from "@/lib/performance";
 
 type ApiOk = { source: string; markdown: string; warning?: string };
 
@@ -47,10 +51,50 @@ export function PlannerClient() {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
 
-  const autoSurvival = horizon === "15d";
+  function oneClickPlan() {
+    // Read weak topics from localStorage and pre-fill subject levels
+    const mistakes = readStore<MistakeRecord[]>(KEYS.MISTAKES, []);
+    const sessions = readStore<MockSession[]>(KEYS.MOCK_SESSIONS, []);
+    const perfs = SSC_CGL_TOPICS.map((t) => computePerformanceScore(mistakes, sessions, t.slug));
+    const weak = computeWeakTopics(perfs);
+    const newLevels = { ...levels };
+    for (const p of weak.slice(0, 4)) {
+      const topic = SSC_CGL_TOPICS.find((t) => t.slug === p.topicSlug);
+      if (topic) newLevels[topic.subject as SubjectId] = "weak";
+    }
+    setLevels(newLevels);
+    void generate();
+  }
 
-  const payload = useMemo(
-    () => ({
+  // Detect burnout: > 6h (360 min) studied yesterday
+  function detectBurnout(): boolean {
+    const log = readStore<Array<{ date: string; minutesStudied: number }>>(KEYS.HABIT_LOG, []);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yStr = yesterday.toISOString().slice(0, 10);
+    const entry = log.find((a) => a.date === yStr);
+    return (entry?.minutesStudied ?? 0) > 360;
+  }
+
+  // Auto-activate survival when exam < 15 days
+  function isExamSoon(): boolean {
+    if (!examDate) return false;
+    const today = new Date();
+    const exam = new Date(examDate);
+    const diff = Math.ceil((exam.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return diff >= 0 && diff < 15;
+  }
+
+  const autoSurvival = horizon === "15d" || isExamSoon();
+
+  const payload = useMemo(() => {
+    const mistakes = readStore<MistakeRecord[]>(KEYS.MISTAKES, []);
+    const sessions = readStore<MockSession[]>(KEYS.MOCK_SESSIONS, []);
+    const perfs = SSC_CGL_TOPICS.map((t) => computePerformanceScore(mistakes, sessions, t.slug));
+    const weak = computeWeakTopics(perfs).slice(0, 5);
+    const weakTopicNames = weak.map((p) => SSC_CGL_TOPICS.find((t) => t.slug === p.topicSlug)?.name ?? p.topicSlug);
+
+    return {
       horizon,
       examDate: examDate.trim() || undefined,
       weekdayHours,
@@ -58,9 +102,11 @@ export function PlannerClient() {
       targetScore: targetScore === "" ? undefined : targetScore,
       survivalMode: survivalMode || autoSurvival,
       levels,
-    }),
-    [horizon, examDate, weekdayHours, weekendHours, targetScore, survivalMode, autoSurvival, levels],
-  );
+      weakTopics: weakTopicNames.length > 0 ? weakTopicNames : undefined,
+      burnoutWarning: detectBurnout(),
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [horizon, examDate, weekdayHours, weekendHours, targetScore, survivalMode, autoSurvival, levels]);
 
   async function generate() {
     setLoading(true);
@@ -203,10 +249,19 @@ export function PlannerClient() {
           <div>
             <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Survival mode</span>
             <p className="text-xs text-zinc-500">
-              {autoSurvival ? "Auto-on for 15-day horizon" : "High-yield topics only"}
+              {autoSurvival ? "Auto-on — exam is soon or 15-day horizon" : "High-yield topics only"}
             </p>
           </div>
         </label>
+
+        {detectBurnout() && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+            <span>😴</span>
+            <p className="text-xs text-amber-800 dark:text-amber-300">
+              You studied over 6 hours yesterday. A rest recommendation will be included in your plan.
+            </p>
+          </div>
+        )}
 
         {/* Subject levels */}
         <div>
@@ -236,6 +291,15 @@ export function PlannerClient() {
             ))}
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => oneClickPlan()}
+          disabled={loading}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 py-2.5 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200"
+        >
+          🎯 One-Click Plan (uses my weak topics)
+        </button>
 
         <button
           type="button"

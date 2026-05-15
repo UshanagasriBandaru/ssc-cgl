@@ -16,6 +16,8 @@ export type PlanRequestBody = {
   targetScore?: number;
   levels: Record<SubjectId, Level>;
   survivalMode?: boolean;
+  weakTopics?: string[];       // top weak topic names from performance data
+  burnoutWarning?: boolean;    // true if > 6h studied yesterday
 };
 
 const WEIGHT_ORDER: TopicWeightage[] = [
@@ -48,9 +50,27 @@ export function prioritizedTopics(body: PlanRequestBody): typeof SSC_CGL_TOPICS 
   });
 }
 
+/** Check if exam date is within 15 days from today */
+export function isExamSoon(examDate?: string): boolean {
+  if (!examDate) return false;
+  const today = new Date();
+  const exam = new Date(examDate);
+  const diffDays = Math.ceil((exam.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return diffDays >= 0 && diffDays < 15;
+}
+
 export function buildPlannerSystemPrompt(body: PlanRequestBody): string {
-  const survival = body.survivalMode ?? survivalCutoff(body.horizon);
+  const autoSurvival = isExamSoon(body.examDate);
+  const survival = body.survivalMode ?? survivalCutoff(body.horizon) ?? autoSurvival;
   const ordered = prioritizedTopics(body).slice(0, survival ? 12 : 24);
+
+  const weakTopicHint = body.weakTopics && body.weakTopics.length > 0
+    ? `\nPerformance data — student's top weak topics (prioritize these):\n${body.weakTopics.map((t) => `- ${t}`).join("\n")}`
+    : "";
+
+  const burnoutHint = body.burnoutWarning
+    ? "\n⚠️ BURNOUT WARNING: Student studied > 6 hours yesterday. Include a mandatory rest/light-revision day in the plan."
+    : "";
 
   return [
     "You are an SSC CGL Tier-I preparation coach.",
@@ -58,10 +78,11 @@ export function buildPlannerSystemPrompt(body: PlanRequestBody): string {
     survival
       ? "SURVIVAL MODE: user has very little time — prioritize only highest-yield topics, mocks, and revision over breadth."
       : "Balance new learning, PYQs, mocks, and revision across the horizon.",
+    burnoutHint,
     "",
     "User constraints:",
     `- Horizon: ${body.horizon}`,
-    body.examDate ? `- Exam date (if given): ${body.examDate}` : "",
+    body.examDate ? `- Exam date: ${body.examDate}${autoSurvival ? " (LESS THAN 15 DAYS — survival mode auto-activated)" : ""}` : "",
     `- Weekday hours/day: ${body.weekdayHours}`,
     `- Weekend hours/day: ${body.weekendHours}`,
     body.targetScore != null ? `- Target score (approx): ${body.targetScore}` : "",
@@ -71,6 +92,7 @@ export function buildPlannerSystemPrompt(body: PlanRequestBody): string {
     `- Reasoning: ${body.levels.reasoning}`,
     `- English: ${body.levels.english}`,
     `- GK: ${body.levels.gk}`,
+    weakTopicHint,
     "",
     "Topic priority hint list (do not ignore weightage):",
     ordered.map((t) => `- ${t.name} (${t.subject}, ${t.weightage})`).join("\n"),

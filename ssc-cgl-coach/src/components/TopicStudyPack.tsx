@@ -84,6 +84,22 @@ export function TopicStudyPack(props: {
           >
             🧪 Mock test →
           </Link>
+          {pack && (
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(
+                  `${pack.importantNotes}\n${pack.formulas}`.slice(0, 5000)
+                );
+                window.speechSynthesis.speak(u);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300"
+            >
+              🔊 Listen
+            </button>
+          )}
         </div>
       </div>
 

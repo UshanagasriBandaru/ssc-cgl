@@ -32,7 +32,12 @@ export async function POST(req: Request) {
     );
   }
 
-  const system = `You are an expert SSC exam mentor (${exam}).
+  const lang = typeof o.lang === "string" ? o.lang : "english";
+  const bilingualInstruction = lang === "telugu-english"
+    ? "\nLANGUAGE: Mix Telugu and English naturally in explanations, like a Telugu-speaking tutor. Use English for formulas and technical terms."
+    : "";
+
+  const system = `You are an expert SSC exam mentor (${exam}).${bilingualInstruction}
 Given ONLY a topic name, produce dense revision material for Indian students.
 Return ONLY valid JSON:
 {
